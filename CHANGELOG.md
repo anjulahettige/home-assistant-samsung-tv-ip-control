@@ -2,6 +2,14 @@
 
 All notable changes to Samsung TV IP Control are documented here.
 
+## [Unreleased]
+
+### Integration
+
+- Fixed token and pairing rejections that some TVs send as a bare `code` and `message` without the JSON-RPC envelope. They were reported as an invalid JSON-RPC version and left the entry retrying setup; a rejected token now starts reauthentication ([#13](https://github.com/anjulahettige/home-assistant-samsung-tv-ip-control/issues/13)).
+- Reconfiguration now pairs again when the TV rejects the saved token and no reauthentication request is open. It previously always directed the user to a reauthentication request, which Home Assistant does not create while a reconfigure flow is open.
+- Extended the pairing timeout from 40 to 75 seconds so a TV that answers an unaccepted prompt after about 60 seconds reports a pairing failure rather than a connection failure.
+
 ## [1.1.0] - 2026-08-22
 
 ### Integration

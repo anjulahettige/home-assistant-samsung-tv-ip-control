@@ -24,6 +24,10 @@ except ModuleNotFoundError as ex:
     ) from ex
 
 from custom_components.samsung_ip_control import async_setup, async_setup_entry
+from custom_components.samsung_ip_control.client import (
+    SamsungIPControlAuthError,
+    SamsungIPControlClient,
+)
 from custom_components.samsung_ip_control.config_flow import (
     SamsungIPControlConfigFlow,
     SamsungIPControlOptionsFlow,
@@ -346,6 +350,129 @@ class HomeAssistantApiTests(unittest.IsolatedAsyncioTestCase):
                 CONF_SERIAL_HASH: _serial_hash("verified-serial"),
             },
         )
+
+    def _reconfigure_flow(
+        self,
+    ) -> tuple[types.SimpleNamespace, types.SimpleNamespace]:
+        """Return a paired entry and a reconfigure flow stub for it."""
+        entry = types.SimpleNamespace(
+            entry_id="entry-one",
+            unique_id="verified-serial",
+            data={
+                CONF_HOST: "192.0.2.1",
+                CONF_PORT: 1516,
+                CONF_MAC: "",
+                CONF_TOKEN: "rejected-token",
+                CONF_CERTIFICATE_FINGERPRINT: "A" * 64,
+                CONF_ENTITY_IDENTITY: "stable-entity-identity",
+                CONF_SERIAL_HASH: _serial_hash("verified-serial"),
+            },
+            async_get_active_flows=Mock(return_value=[]),
+        )
+        flow = types.SimpleNamespace(
+            hass=types.SimpleNamespace(config_entries=FakeConfigEntries([entry])),
+            _get_reconfigure_entry=Mock(return_value=entry),
+            async_set_unique_id=AsyncMock(),
+            async_show_form=lambda **kwargs: {"type": "form", **kwargs},
+            async_update_reload_and_abort=Mock(return_value={"type": "abort"}),
+        )
+        flow._verified_identity_updates = lambda current, serial: (
+            SamsungIPControlConfigFlow._verified_identity_updates(flow, current, serial)
+        )
+        flow.async_step_reconfigure_pair = lambda user_input=None: (
+            SamsungIPControlConfigFlow.async_step_reconfigure_pair(flow, user_input)
+        )
+        return entry, flow
+
+    async def test_reconfigure_pairs_again_when_the_token_is_rejected(self) -> None:
+        entry, flow = self._reconfigure_flow()
+        rejecting_client = types.SimpleNamespace(
+            async_get_power=AsyncMock(side_effect=SamsungIPControlAuthError("stale"))
+        )
+        pairing_client = types.SimpleNamespace(
+            async_pair=AsyncMock(return_value="replacement-token"),
+            async_get_power=AsyncMock(return_value=True),
+            async_get_device_information=AsyncMock(
+                return_value={"serial": "verified-serial"}
+            ),
+        )
+
+        with patch(
+            "custom_components.samsung_ip_control.config_flow.SamsungIPControlClient",
+            side_effect=[rejecting_client, pairing_client],
+        ) as client_class:
+            form = await SamsungIPControlConfigFlow.async_step_reconfigure(
+                flow, {CONF_HOST: "192.0.2.2", CONF_PORT: 1516, CONF_MAC: ""}
+            )
+            result = await SamsungIPControlConfigFlow.async_step_reconfigure_pair(
+                flow, {}
+            )
+
+        self.assertEqual(form["step_id"], "reconfigure_pair")
+        self.assertEqual(result, {"type": "abort"})
+        self.assertEqual(client_class.call_args.args[1], "192.0.2.2")
+        self.assertEqual(
+            client_class.call_args.kwargs["certificate_fingerprint"], "A" * 64
+        )
+        flow.async_update_reload_and_abort.assert_called_once_with(
+            entry,
+            unique_id="verified-serial",
+            data_updates={
+                CONF_HOST: "192.0.2.2",
+                CONF_PORT: 1516,
+                CONF_MAC: "",
+                CONF_TOKEN: "replacement-token",
+                CONF_ENTITY_IDENTITY: "stable-entity-identity",
+                CONF_SERIAL_HASH: _serial_hash("verified-serial"),
+            },
+        )
+
+    async def test_reconfigure_defers_to_an_open_reauthentication(self) -> None:
+        entry, flow = self._reconfigure_flow()
+        entry.async_get_active_flows.return_value = [{"flow_id": "reauth-flow"}]
+        rejecting_client = types.SimpleNamespace(
+            async_get_power=AsyncMock(side_effect=SamsungIPControlAuthError("stale"))
+        )
+
+        with patch(
+            "custom_components.samsung_ip_control.config_flow.SamsungIPControlClient",
+            return_value=rejecting_client,
+        ) as client_class:
+            result = await SamsungIPControlConfigFlow.async_step_reconfigure(
+                flow, {CONF_HOST: "192.0.2.2", CONF_PORT: 1516, CONF_MAC: ""}
+            )
+
+        self.assertEqual(result["step_id"], "reconfigure")
+        self.assertEqual(result["errors"], {"base": "authentication_failed"})
+        entry.async_get_active_flows.assert_called_once_with(flow.hass, {"reauth"})
+        client_class.assert_called_once()
+        flow.async_update_reload_and_abort.assert_not_called()
+
+    async def test_reconfigure_pairing_rejects_a_different_tv(self) -> None:
+        _, flow = self._reconfigure_flow()
+        flow._reconfigure_connection = {
+            CONF_HOST: "192.0.2.2",
+            CONF_PORT: 1516,
+            CONF_MAC: "",
+        }
+        pairing_client = types.SimpleNamespace(
+            async_pair=AsyncMock(return_value="other-tv-token"),
+            async_get_power=AsyncMock(return_value=True),
+            async_get_device_information=AsyncMock(
+                return_value={"serial": "other-serial"}
+            ),
+        )
+
+        with patch(
+            "custom_components.samsung_ip_control.config_flow.SamsungIPControlClient",
+            return_value=pairing_client,
+        ):
+            result = await SamsungIPControlConfigFlow.async_step_reconfigure_pair(
+                flow, {}
+            )
+
+        self.assertEqual(result["errors"], {"base": "device_mismatch"})
+        flow.async_update_reload_and_abort.assert_not_called()
 
     async def test_disabling_text_input_removes_only_pairing_secrets(self) -> None:
         current_options = {
@@ -720,6 +847,26 @@ class HomeAssistantApiTests(unittest.IsolatedAsyncioTestCase):
         entry = types.SimpleNamespace(data={})
         with self.assertRaises(ConfigEntryAuthFailed):
             await async_setup_entry(types.SimpleNamespace(), entry)
+
+    async def test_bare_stale_token_error_starts_reauthentication(self) -> None:
+        hass = types.SimpleNamespace(
+            async_add_executor_job=AsyncMock(
+                side_effect=lambda target, *args: target(*args)
+            )
+        )
+        client = SamsungIPControlClient(
+            hass,
+            "192.0.2.1",
+            token="stale-token",
+            certificate_fingerprint="A" * 64,
+        )
+        client._sync_post = Mock(
+            return_value=json.dumps({"code": -32700, "message": "Parse error"})
+        )
+        stub = types.SimpleNamespace(client=client, device_information={})
+
+        with self.assertRaises(ConfigEntryAuthFailed):
+            await SamsungIPControlCoordinator._async_update_data(stub)
 
     async def test_diagnostics_redact_private_connection_data(self) -> None:
         private_values = {

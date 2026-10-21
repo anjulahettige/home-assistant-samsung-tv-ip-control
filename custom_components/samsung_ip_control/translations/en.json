@@ -28,6 +28,10 @@
         "data_description": {
           "mac": "Used only as a Wake-on-LAN fallback. Leave empty to disable Wake-on-LAN."
         }
+      },
+      "reconfigure_pair": {
+        "title": "Pair Samsung TV IP Control again",
+        "description": "The TV rejected the saved access token. Turn the TV on, close Samsung Home so an HDMI picture is visible, then submit and accept the prompt on the TV."
       }
     },
     "error": {

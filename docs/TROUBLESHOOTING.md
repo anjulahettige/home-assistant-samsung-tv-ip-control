@@ -43,9 +43,13 @@ The integration stops before transmitting the token. Verify the physical TV, its
 
 ## TV address, port, or MAC changed
 
-Open the integration menu under **Settings > Devices & services** and choose **Reconfigure**. Enter the new connection details. The flow saves them only after the existing certificate pin, token, and TV serial all validate.
+Open the integration menu under **Settings > Devices & services** and choose **Reconfigure**. Enter the new connection details. The flow saves them only after the existing certificate pin, token, and TV serial all validate. If the TV rejects the saved token, the flow asks you to accept a new pairing prompt on the TV and saves the new token only after the certificate pin and TV serial validate. When a reauthentication request is already open, the flow sends you to that request instead.
 
-Use reauthentication first when the TV rejects the token. Investigate a certificate mismatch before removing and re-adding the integration.
+Investigate a certificate mismatch before removing and re-adding the integration.
+
+## TV rejects the token after another client paired
+
+Some TVs keep only one valid access token. On a reported QN85D (`24_PTM_QTV_T09`), approving another client's pairing prompt invalidated the token stored by this integration, and restarting the TV did not restore it. Other clients include a second Home Assistant instance, a test script, or a control system. Complete the reauthentication request in Home Assistant and accept the prompt on the TV.
 
 ## TV did not return a serial number
 

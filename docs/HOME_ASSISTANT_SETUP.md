@@ -112,7 +112,7 @@ The first-party card requires no Mushroom, Card Mod, Button Card, or other HACS 
 
 ## Update connection details
 
-Use the integration's **Reconfigure** action when the TV address, port, or Wake-on-LAN MAC changes. The flow validates the existing certificate pin, access token, and physical TV serial before saving the new connection details.
+Use the integration's **Reconfigure** action when the TV address, port, or Wake-on-LAN MAC changes. The flow validates the existing certificate pin, access token, and physical TV serial before saving the new connection details. If the TV rejects the saved token, the flow requests a new pairing prompt on the TV and still validates the certificate pin and serial before saving. When a reauthentication request is already open, complete that request instead.
 
 A certificate mismatch stops before token transmission. Verify the TV, address assignment, and network path. Remove and add the integration only after deciding to trust the replacement certificate.
 

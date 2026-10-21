@@ -33,6 +33,8 @@ The base suite uses Python's standard library and does not connect to Home Assis
 - Rejection of authenticated requests when no certificate pin exists.
 - Blocking token transmission after a certificate mismatch.
 - JSON-RPC version validation and exact decimal-string response-ID correlation.
+- Bare error codes without the JSON-RPC envelope: a rejected token starts reauthentication, and a declined pairing prompt reports a pairing failure.
+- A pairing timeout longer than the TV's 60-second prompt window.
 - Bounded response bodies and controlled remote error text.
 - All 52 allowlisted remote commands, including the complete published key set and fixed direct-access apps.
 - Exact `remoteKeyControl`, `channelUpDnControl`, and `directAccessControl` payloads.
@@ -50,6 +52,7 @@ The base suite uses Python's standard library and does not connect to Home Assis
 - Surface tracking resolving application aliases, clearing on `back`, `exit`, and power off, surviving while the polled input holds, and clearing when the polled input moves on its own.
 - Stable serial-based config-entry identity.
 - Reauthentication replacing only a rejected token after certificate and serial identity validation.
+- Reconfiguration pairing again after a token rejection, saving the new token and connection details only after certificate and serial identity validation, refusing a different TV, and deferring to an open reauthentication flow.
 - A verified legacy entry establishing its missing certificate pin only inside reauthentication.
 - Verified migration of legacy host-based identity and rejection of an unrelated identity.
 - Diagnostics redaction fields.

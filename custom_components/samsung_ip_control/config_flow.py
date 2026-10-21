@@ -53,6 +53,8 @@ class SamsungIPControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
+    _reconfigure_connection: dict[str, Any]
+
     @staticmethod
     @callback
     @override
@@ -248,7 +250,22 @@ class SamsungIPControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 except SamsungIPControlCertificateError:
                     errors["base"] = "certificate_mismatch"
                 except SamsungIPControlAuthError:
-                    errors["base"] = "authentication_failed"
+                    # Home Assistant starts no reauthentication while this flow is
+                    # open, so pair here unless one already exists. Pairing in both
+                    # flows at once could save the older token last.
+                    if any(
+                        entry.async_get_active_flows(
+                            self.hass, {config_entries.SOURCE_REAUTH}
+                        )
+                    ):
+                        errors["base"] = "authentication_failed"
+                    else:
+                        self._reconfigure_connection = {
+                            CONF_HOST: host,
+                            CONF_PORT: user_input[CONF_PORT],
+                            CONF_MAC: mac,
+                        }
+                        return await self.async_step_reconfigure_pair()
                 except SamsungIPControlTransportError:
                     errors["base"] = "cannot_connect"
                 except SamsungIPControlError:
@@ -295,6 +312,58 @@ class SamsungIPControlConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=schema,
+            errors=errors,
+        )
+
+    async def async_step_reconfigure_pair(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pair again at the new connection details after a token rejection."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            connection = self._reconfigure_connection
+            client = SamsungIPControlClient(
+                self.hass,
+                connection[CONF_HOST],
+                port=connection[CONF_PORT],
+                mac=connection[CONF_MAC] or None,
+                certificate_fingerprint=entry.data[CONF_CERTIFICATE_FINGERPRINT],
+            )
+            try:
+                token = await client.async_pair()
+                await client.async_get_power()
+                device_information = await client.async_get_device_information()
+            except SamsungIPControlCertificateError:
+                errors["base"] = "certificate_mismatch"
+            except SamsungIPControlTransportError:
+                errors["base"] = "cannot_connect"
+            except SamsungIPControlError:
+                errors["base"] = "pairing_failed"
+            else:
+                serial = device_information["serial"]
+                if not serial:
+                    errors["base"] = "missing_unique_id"
+                else:
+                    await self.async_set_unique_id(serial)
+                    identity_updates = self._verified_identity_updates(entry, serial)
+                    if identity_updates is None:
+                        errors["base"] = "device_mismatch"
+                    else:
+                        return self.async_update_reload_and_abort(
+                            entry,
+                            unique_id=serial,
+                            data_updates={
+                                **connection,
+                                CONF_TOKEN: token,
+                                **identity_updates,
+                            },
+                        )
+
+        return self.async_show_form(
+            step_id="reconfigure_pair",
+            data_schema=vol.Schema({}),
             errors=errors,
         )
 
