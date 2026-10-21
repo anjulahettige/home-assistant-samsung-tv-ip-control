@@ -1,4 +1,4 @@
-const SAMSUNG_IP_REMOTE_CARD_VERSION = "1.1.0";
+const SAMSUNG_IP_REMOTE_CARD_VERSION = "1.1.1";
 
 const CONTROL_GROUPS = {
   quick: [
