@@ -98,4 +98,4 @@ Optional AI bridge software runs outside this integration's dependency set. When
 
 ## Supported versions
 
-Version `1.1.0` is the current supported release. Security fixes target the latest published version. Check the changelog and open fixes before reporting a vulnerability that may already be addressed.
+Version `1.1.1` is the current supported release. Security fixes target the latest published version. Check the changelog and open fixes before reporting a vulnerability that may already be addressed.

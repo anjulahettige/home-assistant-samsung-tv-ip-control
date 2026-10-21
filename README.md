@@ -59,7 +59,7 @@ HACS installs the integration under `custom_components` and provides future upda
 
 ### Manual installation
 
-1. Download the current [`v1.1.0` release](https://github.com/anjulahettige/home-assistant-samsung-tv-ip-control/releases/tag/v1.1.0).
+1. Download the current [`v1.1.1` release](https://github.com/anjulahettige/home-assistant-samsung-tv-ip-control/releases/tag/v1.1.1).
 2. Copy only `custom_components/samsung_ip_control` into the Home Assistant configuration directory under `custom_components`.
 3. Run the configuration check supported by the Home Assistant installation type.
 4. Restart Home Assistant.
@@ -124,7 +124,7 @@ Home Assistant's Emulated Roku listener is an unauthenticated local-network API.
 
 ## Project status
 
-Version [`1.1.0`](https://github.com/anjulahettige/home-assistant-samsung-tv-ip-control/releases/tag/v1.1.0) is the current release. All 52 allowlisted commands were exercised on the tested setup, with API acceptance and visible TV behavior recorded separately. Wider model and firmware reports are welcome through the repository's compatibility issue form.
+Version [`1.1.1`](https://github.com/anjulahettige/home-assistant-samsung-tv-ip-control/releases/tag/v1.1.1) is the current release. All 52 allowlisted commands were exercised on the tested setup, with API acceptance and visible TV behavior recorded separately. Wider model and firmware reports are welcome through the repository's compatibility issue form.
 
 ## License
 
