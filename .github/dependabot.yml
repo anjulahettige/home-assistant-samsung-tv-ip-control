@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      # CodeQL fails when init and analyze run different versions.
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
   - package-ecosystem: pip
     directory: /
     schedule:
