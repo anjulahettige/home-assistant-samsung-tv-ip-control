@@ -34,6 +34,7 @@ const_module = sys.modules["samsung_ip_control.const"]
 client_module = _load_module("samsung_ip_control.client", "client.py")
 
 SamsungIPControlClient = client_module.SamsungIPControlClient
+SamsungIPControlAuthError = client_module.SamsungIPControlAuthError
 SamsungIPControlCertificateError = client_module.SamsungIPControlCertificateError
 SamsungIPControlProtocolError = client_module.SamsungIPControlProtocolError
 SamsungIPControlTransportError = client_module.SamsungIPControlTransportError
@@ -202,6 +203,42 @@ class ClientHelperTests(unittest.TestCase):
             SamsungIPControlProtocolError, "mismatched JSON-RPC"
         ):
             client._sync_request(1, "powerControl", None, True, 6)
+
+        client._sync_post = lambda payload, timeout: json.dumps(
+            {"jsonrpc": "2.0", "id": "2", "error": {"code": -32010}}
+        )
+        with self.assertRaisesRegex(
+            SamsungIPControlProtocolError, "mismatched JSON-RPC"
+        ):
+            client._sync_request(1, "powerControl", None, True, 6)
+
+    def test_bare_error_codes_map_to_authentication_failures(self) -> None:
+        client = SamsungIPControlClient(
+            FakeHomeAssistant(),
+            "192.0.2.1",
+            token="secret",
+            certificate_fingerprint="A" * 64,
+        )
+        # Bodies a QN85D returns without a JSON-RPC envelope.
+        stale_token = {"code": -32700, "message": "Parse error"}
+        prompt_declined = {"code": -32010, "message": "Unauthorized access"}
+
+        client._sync_post = lambda payload, timeout: json.dumps(stale_token)
+        with self.assertRaises(SamsungIPControlAuthError):
+            client._sync_request(1, "powerControl", None, True, 6)
+        with self.assertRaises(SamsungIPControlProtocolError) as context:
+            client._sync_request(2, "createAccessToken", None, False, 40)
+        self.assertEqual(context.exception.code, -32700)
+
+        client._sync_post = lambda payload, timeout: json.dumps(prompt_declined)
+        with self.assertRaises(SamsungIPControlAuthError):
+            client._sync_request(3, "createAccessToken", None, False, 40)
+
+        client._sync_post = lambda payload, timeout: json.dumps(
+            {"jsonrpc": "2.0", "id": "4", "error": {"code": -32700}}
+        )
+        with self.assertRaises(SamsungIPControlAuthError):
+            client._sync_request(4, "powerControl", None, True, 6)
 
     def test_remote_error_message_is_not_copied_into_exception(self) -> None:
         client = SamsungIPControlClient(
@@ -402,6 +439,20 @@ class ClientHelperTests(unittest.TestCase):
 
 
 class RemoteCommandTests(unittest.IsolatedAsyncioTestCase):
+    async def test_pairing_outlasts_the_tv_prompt_window(self) -> None:
+        client = SamsungIPControlClient(FakeHomeAssistant(), "192.0.2.1")
+        timeouts: list[int] = []
+
+        def fake_post(payload: bytes, timeout: int) -> str:
+            timeouts.append(timeout)
+            return json.dumps({"code": -32010, "message": "Unauthorized access"})
+
+        client._sync_post = fake_post
+        with self.assertRaises(SamsungIPControlAuthError):
+            await client.async_pair()
+        # The reported QN85D answers an unaccepted prompt after about 60 seconds.
+        self.assertGreater(timeouts[0], 60)
+
     async def test_all_allowlisted_remote_commands_dispatch(self) -> None:
         client = RecordingClient()
         for command in REMOTE_COMMANDS:

@@ -25,7 +25,9 @@ if TYPE_CHECKING:
 
 JSONRPC_VERSION = "2.0"
 COMMAND_TIMEOUT = 6
-PAIR_TIMEOUT = 40
+# A reported QN85D answers an unaccepted pairing prompt with -32010 after about
+# 60 seconds. Waiting past that window reports it as a rejection, not a timeout.
+PAIR_TIMEOUT = 75
 MAX_RESPONSE_BYTES = 64 * 1024
 ERROR_UNAUTHORIZED = -32010
 ERROR_STALE_TOKEN = -32700
@@ -396,21 +398,25 @@ class SamsungIPControlClient:
             ) from ex
         if not isinstance(response, dict):
             raise SamsungIPControlProtocolError("The TV returned an invalid response")
-        if response.get("jsonrpc") != JSONRPC_VERSION:
-            raise SamsungIPControlProtocolError(
-                "The TV returned an invalid JSON-RPC version"
-            )
-        if response.get("id") != str(request_id):
-            raise SamsungIPControlProtocolError(
-                "The TV returned a mismatched JSON-RPC response"
-            )
 
         error = response.get("error")
         if error is None and "code" in response and "result" not in response:
+            # Some sets answer token and pairing rejections with a bare code and
+            # message and no JSON-RPC envelope. Reading the code before checking
+            # the envelope keeps a stale token on the reauthentication path.
             error = {
                 "code": response.get("code"),
                 "message": response.get("message"),
             }
+        elif response.get("jsonrpc") != JSONRPC_VERSION:
+            raise SamsungIPControlProtocolError(
+                "The TV returned an invalid JSON-RPC version"
+            )
+        elif response.get("id") != str(request_id):
+            raise SamsungIPControlProtocolError(
+                "The TV returned a mismatched JSON-RPC response"
+            )
+
         if error is not None:
             code = error.get("code") if isinstance(error, dict) else None
             if code == ERROR_UNAUTHORIZED or (

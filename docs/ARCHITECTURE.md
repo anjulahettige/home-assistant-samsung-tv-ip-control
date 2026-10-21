@@ -53,7 +53,7 @@ Enabling text input creates a second trust decision. The options flow pins the s
 
 ## Device identity
 
-After pairing, the integration reads the TV serial and uses it as the Home Assistant config-entry unique ID. Entity and device-registry identifiers use a SHA-256 digest of the serial, which stays stable across reinstallation without placing the plaintext serial in config-entry data. The digest and serial are redacted from diagnostics. Reconfiguration validates the pinned certificate, token, and serial digest before accepting a new address, port, or Wake-on-LAN MAC. A verified legacy identity migration changes the config-entry unique ID atomically with the flow's data update.
+After pairing, the integration reads the TV serial and uses it as the Home Assistant config-entry unique ID. Entity and device-registry identifiers use a SHA-256 digest of the serial, which stays stable across reinstallation without placing the plaintext serial in config-entry data. The digest and serial are redacted from diagnostics. Reconfiguration validates the pinned certificate, token, and serial digest before accepting a new address, port, or Wake-on-LAN MAC. When the TV rejects the token, reconfiguration pairs again under the same certificate pin and serial check, because Home Assistant does not start reauthentication while a reconfigure flow is open. It defers to a reauthentication flow that already exists instead of pairing alongside it. A verified legacy identity migration changes the config-entry unique ID atomically with the flow's data update.
 
 ## Protocol limits
 
