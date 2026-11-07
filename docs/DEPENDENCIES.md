@@ -51,7 +51,7 @@ The repository does not assume a host path, container name, SSH account, operati
 
 | Dependency | Where recorded | Purpose |
 | --- | --- | --- |
-| Python `3.14.2` | GitHub Actions workflow | Matches the minimum Python patch release required by Home Assistant `2026.8.2` |
+| Python `3.14.2` | GitHub Actions workflow | Matches the minimum Python patch release required by the tested Home Assistant version; the Python jobs run on `ubuntu-24.04` because GitHub's Ubuntu 26.04 builds start at Python `3.14.6` |
 | Python standard library `unittest` | Tests | Runs protocol and repository privacy checks without a Home Assistant install |
 | Node.js syntax checker | GitHub-hosted runner and optional local validation | Parses the first-party remote card without adding an npm dependency |
 | Ruff `0.17.1` | `requirements-dev.txt` | Lint and format validation |
